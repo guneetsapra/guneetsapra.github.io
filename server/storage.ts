@@ -146,35 +146,47 @@ export class DatabaseStorage implements IStorage {
 
   // Ad blocking statistics methods
   async getAdBlockStats(): Promise<AdBlockingStatistics> {
-    const stats = await db.select().from(adBlockStats);
-    
-    // Calculate totals
-    const adsBlocked = stats.reduce((sum, stat) => sum + stat.adsBlocked, 0);
-    const trackersBlocked = stats.reduce((sum, stat) => sum + stat.trackersBlocked, 0);
-    const totalBlocked = adsBlocked + trackersBlocked;
-    
-    // Get top blocked domains using SQL aggregation
-    const topBlockedDomainsResult = await db
-      .select({
-        domain: adBlockStats.domain,
-        count: sql<number>`sum(${adBlockStats.adsBlocked} + ${adBlockStats.trackersBlocked})`,
-      })
-      .from(adBlockStats)
-      .groupBy(adBlockStats.domain)
-      .orderBy(desc(sql`count`))
-      .limit(10);
-    
-    const topBlockedDomains = topBlockedDomainsResult.map(result => ({
-      domain: result.domain,
-      count: result.count,
-    }));
-    
-    return {
-      adsBlocked,
-      trackersBlocked,
-      totalBlocked,
-      topBlockedDomains
-    };
+    try {
+      const stats = await db.select().from(adBlockStats);
+      
+      // Calculate totals
+      const adsBlocked = stats.reduce((sum, stat) => sum + stat.adsBlocked, 0);
+      const trackersBlocked = stats.reduce((sum, stat) => sum + stat.trackersBlocked, 0);
+      const totalBlocked = adsBlocked + trackersBlocked;
+      
+      // Get top blocked domains using SQL aggregation
+      const topBlockedDomainsResult = await db
+        .select({
+          domain: adBlockStats.domain,
+          count: sql<number>`sum(${adBlockStats.adsBlocked} + ${adBlockStats.trackersBlocked})`,
+        })
+        .from(adBlockStats)
+        .groupBy(adBlockStats.domain)
+        .orderBy(desc(sql`count`))
+        .limit(10);
+      
+      const topBlockedDomains = topBlockedDomainsResult.map(result => ({
+        domain: result.domain,
+        count: result.count || 0, // Ensure count is never null
+      }));
+      
+      return {
+        adsBlocked,
+        trackersBlocked,
+        totalBlocked,
+        topBlockedDomains
+      };
+    } catch (error) {
+      console.error("Error fetching ad block stats:", error);
+      
+      // Return default empty stats if there's an error
+      return {
+        adsBlocked: 0,
+        trackersBlocked: 0,
+        totalBlocked: 0,
+        topBlockedDomains: []
+      };
+    }
   }
 
   async addAdBlockStat(insertStat: InsertAdBlockStat): Promise<AdBlockStat> {

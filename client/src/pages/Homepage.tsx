@@ -36,7 +36,7 @@ export default function Homepage() {
   return (
     <div className="h-[200vh] overflow-y-auto">
       {/* First viewport - Logo section */}
-      <div className="h-screen flex flex-col items-center justify-center relative bg-gradient-to-br from-indigo-900 via-purple-800 to-purple-900">
+      <div className="h-screen flex flex-col items-center justify-center relative xeno-gradient">
         {/* Logo animation container */}
         <div 
           className="relative transition-all duration-700 ease-in-out"
@@ -85,7 +85,7 @@ export default function Homepage() {
       </div>
       
       {/* Second viewport - Feature highlights */}
-      <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-purple-900 p-6">
+      <div className="h-screen flex flex-col items-center justify-center xeno-gradient p-6">
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
           <FeatureCard 
             icon="block" 
