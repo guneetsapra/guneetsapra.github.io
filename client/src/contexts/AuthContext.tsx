@@ -1,12 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { auth, signInWithGoogle, logOut, subscribeToAuthChanges } from '@/lib/firebase';
+import { 
+  auth, 
+  signInWithGoogle, 
+  logOut, 
+  subscribeToAuthChanges 
+} from '@/lib/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword 
+} from 'firebase/auth';
 
 // Create context types
 type AuthContextType = {
   currentUser: User | null;
   loading: boolean;
   login: () => Promise<User | undefined>;
+  loginWithEmail: (email: string, password: string) => Promise<User>;
+  createUserWithEmail: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
 };
 
@@ -15,11 +26,14 @@ const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   loading: true,
   login: async () => undefined,
+  loginWithEmail: async () => {
+    throw new Error('Not implemented');
+  },
+  createUserWithEmail: async () => {
+    throw new Error('Not implemented');
+  },
   logout: async () => {},
 });
-
-// Custom hook for accessing the auth context
-export const useAuth = () => useContext(AuthContext);
 
 // Auth Provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -37,12 +51,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  // Login function
+  // Login with Google
   const login = async () => {
     try {
       return await signInWithGoogle();
     } catch (error) {
       console.error("Login failed:", error);
+      throw error;
+    }
+  };
+
+  // Login with email/password
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      console.error("Email login failed:", error);
+      throw error;
+    }
+  };
+
+  // Create user with email/password
+  const createUserWithEmail = async (email: string, password: string) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      console.error("Email signup failed:", error);
       throw error;
     }
   };
@@ -62,6 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentUser,
     loading,
     login,
+    loginWithEmail,
+    createUserWithEmail,
     logout,
   };
 
@@ -71,3 +109,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+
+// Custom hook for accessing the auth context
+export const useAuth = () => useContext(AuthContext);

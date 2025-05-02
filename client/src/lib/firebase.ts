@@ -1,5 +1,14 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut, 
+  onAuthStateChanged, 
+  User 
+} from "firebase/auth";
 
 // Firebase configuration using environment variables
 const firebaseConfig = {
@@ -10,6 +19,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+console.log("Firebase config:", {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ? "***" : "missing",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "missing",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ? "***" : "missing" 
+});
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -18,10 +33,21 @@ export const googleProvider = new GoogleAuthProvider();
 // Sign in with Google
 export const signInWithGoogle = async () => {
   try {
+    // Allow creating accounts if they don't exist
+    googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing in with Google", error);
+    
+    // Handle specific Firebase error codes
+    if (error.code === 'auth/configuration-not-found') {
+      throw new Error('Google authentication is not properly configured in the Firebase console. Please enable Google authentication in the Firebase Authentication settings.');
+    }
+    
     throw error;
   }
 };
