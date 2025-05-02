@@ -11,6 +11,8 @@ import {
   type BrowserSettings,
   type AdBlockingStatistics
 } from "@shared/schema";
+import { db } from './db';
+import { eq, desc, sql, and } from 'drizzle-orm';
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -31,99 +33,97 @@ export interface IStorage {
   resetAdBlockStats(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private sites: Map<number, WhitelistedSite>;
-  private stats: Map<number, AdBlockStat>;
-  private userCurrentId: number;
-  private siteCurrentId: number;
-  private statCurrentId: number;
-
+export class DatabaseStorage implements IStorage {
   constructor() {
-    this.users = new Map();
-    this.sites = new Map();
-    this.stats = new Map();
-    this.userCurrentId = 1;
-    this.siteCurrentId = 1;
-    this.statCurrentId = 1;
+    // Initialize default whitelisted sites if none exist
+    this.initializeDefaultSites();
+  }
+
+  private async initializeDefaultSites() {
+    const existingSites = await db.select().from(whitelistedSites);
     
-    // Initialize with some default whitelisted sites
-    const defaultSites = [
-      { domain: "example.com", enabled: true },
-      { domain: "google.com", enabled: true },
-      { domain: "github.com", enabled: true },
-      { domain: "stackoverflow.com", enabled: true },
-      { domain: "wikipedia.org", enabled: true }
-    ];
-    
-    defaultSites.forEach(site => {
-      this.addWhitelistedSite(site);
-    });
+    if (existingSites.length === 0) {
+      const defaultSites = [
+        { domain: "example.com", enabled: true },
+        { domain: "google.com", enabled: true },
+        { domain: "github.com", enabled: true },
+        { domain: "stackoverflow.com", enabled: true },
+        { domain: "wikipedia.org", enabled: true }
+      ];
+      
+      for (const site of defaultSites) {
+        await this.addWhitelistedSite(site);
+      }
+    }
   }
 
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userCurrentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   // Whitelist methods
   async getAllWhitelistedSites(): Promise<WhitelistedSite[]> {
-    return Array.from(this.sites.values());
+    return db.select().from(whitelistedSites);
   }
 
   async getWhitelistedSite(id: number): Promise<WhitelistedSite | undefined> {
-    return this.sites.get(id);
+    const [site] = await db.select().from(whitelistedSites).where(eq(whitelistedSites.id, id));
+    return site;
   }
 
   async addWhitelistedSite(insertSite: InsertWhitelistedSite): Promise<WhitelistedSite> {
     // Check if domain already exists
-    const existingSite = Array.from(this.sites.values()).find(
-      site => site.domain === insertSite.domain
-    );
+    const [existingSite] = await db
+      .select()
+      .from(whitelistedSites)
+      .where(eq(whitelistedSites.domain, insertSite.domain));
     
     if (existingSite) {
       return existingSite;
     }
     
-    const id = this.siteCurrentId++;
-    const site: WhitelistedSite = { ...insertSite, id };
-    this.sites.set(id, site);
+    const [site] = await db.insert(whitelistedSites).values(insertSite).returning();
     return site;
   }
 
   async removeWhitelistedSite(id: number): Promise<void> {
-    this.sites.delete(id);
+    await db.delete(whitelistedSites).where(eq(whitelistedSites.id, id));
   }
 
   async updateWhitelistedSite(id: number, updates: Partial<InsertWhitelistedSite>): Promise<WhitelistedSite> {
-    const site = this.sites.get(id);
-    if (!site) {
+    const [updatedSite] = await db
+      .update(whitelistedSites)
+      .set(updates)
+      .where(eq(whitelistedSites.id, id))
+      .returning();
+    
+    if (!updatedSite) {
       throw new Error(`Whitelisted site with ID ${id} not found`);
     }
     
-    const updatedSite = { ...site, ...updates };
-    this.sites.set(id, updatedSite);
     return updatedSite;
   }
 
   async isDomainWhitelisted(domain: string): Promise<boolean> {
-    const sites = Array.from(this.sites.values());
-    
     // Check exact match first
-    if (sites.some(site => site.domain === domain && site.enabled)) {
+    const [exactMatch] = await db
+      .select()
+      .from(whitelistedSites)
+      .where(and(eq(whitelistedSites.domain, domain), eq(whitelistedSites.enabled, true)));
+    
+    if (exactMatch) {
       return true;
     }
     
@@ -131,7 +131,12 @@ export class MemStorage implements IStorage {
     const domainParts = domain.split('.');
     for (let i = 1; i < domainParts.length - 1; i++) {
       const parentDomain = domainParts.slice(i).join('.');
-      if (sites.some(site => site.domain === parentDomain && site.enabled)) {
+      const [parentMatch] = await db
+        .select()
+        .from(whitelistedSites)
+        .where(and(eq(whitelistedSites.domain, parentDomain), eq(whitelistedSites.enabled, true)));
+      
+      if (parentMatch) {
         return true;
       }
     }
@@ -141,24 +146,28 @@ export class MemStorage implements IStorage {
 
   // Ad blocking statistics methods
   async getAdBlockStats(): Promise<AdBlockingStatistics> {
-    const stats = Array.from(this.stats.values());
+    const stats = await db.select().from(adBlockStats);
     
     // Calculate totals
     const adsBlocked = stats.reduce((sum, stat) => sum + stat.adsBlocked, 0);
     const trackersBlocked = stats.reduce((sum, stat) => sum + stat.trackersBlocked, 0);
     const totalBlocked = adsBlocked + trackersBlocked;
     
-    // Aggregate by domain
-    const domainCounts = new Map<string, number>();
-    stats.forEach(stat => {
-      const count = (domainCounts.get(stat.domain) || 0) + stat.adsBlocked + stat.trackersBlocked;
-      domainCounts.set(stat.domain, count);
-    });
+    // Get top blocked domains using SQL aggregation
+    const topBlockedDomainsResult = await db
+      .select({
+        domain: adBlockStats.domain,
+        count: sql<number>`sum(${adBlockStats.adsBlocked} + ${adBlockStats.trackersBlocked})`,
+      })
+      .from(adBlockStats)
+      .groupBy(adBlockStats.domain)
+      .orderBy(desc(sql`count`))
+      .limit(10);
     
-    // Convert to array and sort by count
-    const topBlockedDomains = Array.from(domainCounts.entries())
-      .map(([domain, count]) => ({ domain, count }))
-      .sort((a, b) => b.count - a.count);
+    const topBlockedDomains = topBlockedDomainsResult.map(result => ({
+      domain: result.domain,
+      count: result.count,
+    }));
     
     return {
       adsBlocked,
@@ -169,15 +178,13 @@ export class MemStorage implements IStorage {
   }
 
   async addAdBlockStat(insertStat: InsertAdBlockStat): Promise<AdBlockStat> {
-    const id = this.statCurrentId++;
-    const stat: AdBlockStat = { ...insertStat, id };
-    this.stats.set(id, stat);
+    const [stat] = await db.insert(adBlockStats).values(insertStat).returning();
     return stat;
   }
 
   async resetAdBlockStats(): Promise<void> {
-    this.stats.clear();
+    await db.delete(adBlockStats);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

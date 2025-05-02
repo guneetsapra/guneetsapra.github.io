@@ -1,15 +1,13 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
 
-// Firebase configuration
+// Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyDYLrOPeyZTc19iTprwiyfLVsgHIohk8bA",
-  authDomain: "xeno-ddbe4.firebaseapp.com",
-  projectId: "xeno-ddbe4",
-  storageBucket: "xeno-ddbe4.firebasestorage.app",
-  messagingSenderId: "750097493512",
-  appId: "1:750097493512:web:05aeac7c6fed121f3f2bbd",
-  measurementId: "G-0ZSV7JDDW0"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
