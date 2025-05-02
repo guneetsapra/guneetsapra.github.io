@@ -10,24 +10,20 @@ export default function WebView({ url }: WebViewProps) {
   const { adBlockingEnabled, blockingLevel } = useAdBlocker();
   
   useEffect(() => {
-    // Real implementation would inject content scripts or use a more
-    // sophisticated approach for ad-blocking in the iframe content
     const iframe = iframeRef.current;
     if (!iframe || !url) return;
     
-    // Update iframe src when URL changes
-    iframe.src = url;
+    // Only update the src if it's different to prevent unnecessary reloads
+    if (iframe.src !== url && url !== "") {
+      iframe.src = url;
+    }
     
     // Apply ad blocking if enabled
     if (adBlockingEnabled && iframe.contentWindow) {
-      // This is just for illustration - in a real implementation
-      // you would use a more robust approach to inject ad-blocking code
-      // into the iframe content
       try {
-        iframe.addEventListener('load', () => {
+        const handleIframeLoad = () => {
           if (iframe.contentDocument) {
             // Example of a very simple ad blocker implementation
-            // In a real app, this would be much more sophisticated
             const adElements = iframe.contentDocument.querySelectorAll(
               '[id*="ad"],[class*="ad"],[id*="banner"],[class*="banner"]'
             );
@@ -36,7 +32,13 @@ export default function WebView({ url }: WebViewProps) {
               (el as HTMLElement).style.display = 'none';
             });
           }
-        });
+        };
+        
+        iframe.addEventListener('load', handleIframeLoad);
+        
+        return () => {
+          iframe.removeEventListener('load', handleIframeLoad);
+        };
       } catch (error) {
         console.error("Error applying ad blocking:", error);
       }
@@ -57,8 +59,9 @@ export default function WebView({ url }: WebViewProps) {
       src={url}
       className="h-full w-full border-none"
       title="Web content"
-      sandbox="allow-same-origin allow-scripts allow-forms"
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox allow-presentation"
       referrerPolicy="no-referrer"
+      allow="autoplay; camera; microphone; fullscreen; encrypted-media; picture-in-picture; web-share; midi; geolocation"
     />
   );
 }

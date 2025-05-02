@@ -1,9 +1,9 @@
 import { Switch, Route } from "wouter";
-import Browser from "@/pages/Browser";
-import Settings from "@/pages/Settings";
-import BlockedSite from "@/pages/BlockedSite";
-import NotFound from "@/pages/not-found";
-import Homepage from "@/pages/Homepage";
+import Browser from "./pages/Browser";
+import Settings from "./pages/Settings";
+import BlockedSite from "./pages/BlockedSite";
+import NotFound from "./pages/not-found";
+import Homepage from "./pages/Homepage";
 
 export default function App() {
   return (
